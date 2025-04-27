@@ -2,101 +2,193 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from "firebase/firestore"
+import { db } from "@/lib/firebase"
+import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Separator } from "@/components/ui/separator"
-import { useAuth } from "@/lib/hooks/use-auth"
-import { getProductById, getProductFeedback, createRental } from "@/lib/data"
-import type { Feedback } from "@/lib/types"
-import { Star } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { formatCurrency, formatDate } from "@/lib/utils"
+import { MapPin, User, Star } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/components/ui/use-toast"
 
-export default function ProductPage() {
-  const params = useParams()
-  const router = useRouter()
+export default function ProductDetailPage() {
+  const { id } = useParams()
   const { user } = useAuth()
-  const [product, setProduct] = useState<any>(null)
-  const [feedback, setFeedback] = useState<Feedback[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined)
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined)
-  const [dateError, setDateError] = useState("")
+  const router = useRouter()
+  const { toast } = useToast()
+
+  const [product, setProduct] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [rentalDays, setRentalDays] = useState(1)
+  const [message, setMessage] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [reviews, setReviews] = useState([])
+  const [loadingReviews, setLoadingReviews] = useState(true)
 
   useEffect(() => {
-    const loadProduct = async () => {
+    const fetchProduct = async () => {
       try {
-        setIsLoading(true)
-        const productId = Number(params.id)
-        const productData = await getProductById(productId)
-        setProduct(productData)
+        const docRef = doc(db, "products", id)
+        const docSnap = await getDoc(docRef)
 
-        const feedbackData = await getProductFeedback(productId)
-        setFeedback(feedbackData)
+        if (docSnap.exists()) {
+          setProduct({ id: docSnap.id, ...docSnap.data() })
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Product not found",
+            description: "The product you're looking for doesn't exist.",
+          })
+          router.push("/products")
+        }
       } catch (error) {
-        console.error("Failed to load product:", error)
+        console.error("Error fetching product:", error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load product details.",
+        })
       } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
-    if (params.id) {
-      loadProduct()
-    }
-  }, [params.id])
+    const fetchReviews = async () => {
+      try {
+        const q = query(collection(db, "reviews"), where("productId", "==", id), orderBy("createdAt", "desc"))
 
-  const handleDateSelect = (date: Date | undefined) => {
-    setDateError("")
-    if (!startDate) {
-      setStartDate(date)
-    } else if (!endDate && date && date > startDate) {
-      setEndDate(date)
-    } else {
-      setStartDate(date)
-      setEndDate(undefined)
-    }
-  }
+        const querySnapshot = await getDocs(q)
+        const reviewsData = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
 
-  const handleRentNow = async () => {
+        setReviews(reviewsData)
+      } catch (error) {
+        console.error("Error fetching reviews:", error)
+      } finally {
+        setLoadingReviews(false)
+      }
+    }
+
+    if (id) {
+      fetchProduct()
+      fetchReviews()
+    }
+  }, [id, router, toast])
+
+  const handleRentRequest = async (e) => {
+    e.preventDefault()
+
     if (!user) {
-      router.push("/login")
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "You must be logged in to request a rental.",
+      })
+      router.push("/auth/login")
       return
     }
 
-    if (!startDate || !endDate) {
-      setDateError("Please select both start and end dates")
+    if (user.uid === product.ownerId) {
+      toast({
+        variant: "destructive",
+        title: "Cannot rent your own product",
+        description: "You cannot rent a product that you own.",
+      })
       return
     }
+
+    if (product.isRented) {
+      toast({
+        variant: "destructive",
+        title: "Product unavailable",
+        description: "This product is currently rented by someone else.",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
 
     try {
-      await createRental({
-        product_id: product.product_id,
-        renter_id: user.id,
-        start_date: startDate.toISOString().split("T")[0],
-        end_date: endDate.toISOString().split("T")[0],
-        status: "Pending",
+      // Calculate rental details
+      const startDate = new Date()
+      const endDate = new Date()
+      endDate.setDate(endDate.getDate() + Number.parseInt(rentalDays))
+
+      const totalPrice = product.price * Number.parseInt(rentalDays)
+
+      // Create rental request in Firestore
+      await addDoc(collection(db, "rentals"), {
+        productId: id,
+        productTitle: product.title,
+        ownerId: product.ownerId,
+        renterId: user.uid,
+        renterName: user.displayName || user.name,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        days: Number.parseInt(rentalDays),
+        totalPrice,
+        message,
+        status: "pending", // pending, approved, rejected, completed
+        createdAt: serverTimestamp(),
+        reviewed: false,
       })
 
-      router.push("/dashboard/rentals")
+      toast({
+        title: "Rental requested!",
+        description: "Your rental request has been sent to the owner.",
+      })
+
+      setIsDialogOpen(false)
+      router.push("/my-rentals")
     } catch (error) {
-      console.error("Failed to create rental:", error)
-      setDateError("Failed to create rental. Please try again.")
+      console.error("Error creating rental request:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit rental request. Please try again.",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  if (isLoading) {
+  const calculateAverageRating = () => {
+    if (reviews.length === 0) return 0
+    const sum = reviews.reduce((total, review) => total + review.rating, 0)
+    return (sum / reviews.length).toFixed(1)
+  }
+
+  if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded w-1/3 mb-8"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="h-96 bg-muted rounded"></div>
+        <div className="max-w-4xl mx-auto">
+          <Skeleton className="h-8 w-2/3 mb-4" />
+          <Skeleton className="h-6 w-1/3 mb-8" />
+
+          <div className="grid md:grid-cols-2 gap-8">
+            <Skeleton className="h-80 w-full rounded-lg" />
+
             <div className="space-y-4">
-              <div className="h-8 bg-muted rounded w-3/4"></div>
-              <div className="h-4 bg-muted rounded w-1/2"></div>
-              <div className="h-24 bg-muted rounded"></div>
-              <div className="h-10 bg-muted rounded w-1/3"></div>
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-6 w-1/3" />
+              <Skeleton className="h-10 w-full" />
             </div>
           </div>
         </div>
@@ -105,190 +197,176 @@ export default function ProductPage() {
   }
 
   if (!product) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Product not found</h1>
-        <p>The product you are looking for does not exist or has been removed.</p>
-        <Button className="mt-4" onClick={() => router.push("/products")}>
-          Back to Products
-        </Button>
-      </div>
-    )
+    return null
   }
-
-  const isOwner = user && user.id === product.owner_id
-  const totalDays =
-    startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0
-  const totalPrice = totalDays * product.price
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div>
-          <div className="relative h-96 bg-muted rounded-lg overflow-hidden">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <p className="text-lg font-medium">Product Image</p>
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2">{product.title}</h1>
+        <p className="text-gray-500 mb-8">
+          {product.category} • Listed {product.createdAt?.toDate ? formatDate(product.createdAt.toDate()) : "Recently"}
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="bg-gray-100 rounded-lg aspect-square flex items-center justify-center">
+            <div className="text-6xl text-gray-400">📦</div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Description</h2>
+              <p className="text-gray-700">{product.description}</p>
             </div>
-            <Badge className="absolute top-4 left-4">{product.category}</Badge>
-          </div>
-          <div className="grid grid-cols-4 gap-2 mt-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-24 bg-muted rounded-lg flex items-center justify-center">
-                <p className="text-sm">Image {i}</p>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">{product.name}</h1>
-            <p className="text-xl text-primary font-semibold mt-2">${product.price.toFixed(2)}/day</p>
-            <Badge variant="outline" className="mt-2">
-              {product.availibility ? "Available" : "Unavailable"}
-            </Badge>
-          </div>
+            <div className="flex items-center text-gray-600">
+              <User className="h-5 w-5 mr-2" />
+              <span>Listed by {product.ownerName}</span>
+            </div>
 
-          <Separator />
-
-          <div>
-            <h2 className="text-xl font-semibold mb-2">Description</h2>
-            <p className="text-muted-foreground">{product.description}</p>
-          </div>
-
-          <Separator />
-
-          <div>
-            <h2 className="text-xl font-semibold mb-2">Owner</h2>
-            <p>{product.owner_name || "Unknown"}</p>
-          </div>
-
-          {!isOwner && product.availibility ? (
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Rent this product</h3>
-                <div className="mb-4">
-                  <p className="text-sm text-muted-foreground mb-2">Select rental dates:</p>
-                  <CalendarComponent
-                    mode="range"
-                    selected={{
-                      from: startDate,
-                      to: endDate,
-                    }}
-                    onSelect={(range) => {
-                      setStartDate(range?.from)
-                      setEndDate(range?.to)
-                      setDateError("")
-                    }}
-                    className="rounded-md border"
-                    disabled={(date) => date < new Date()}
-                  />
-                  {dateError && <p className="text-destructive text-sm mt-2">{dateError}</p>}
-                </div>
-
-                {startDate && endDate && (
-                  <div className="space-y-2 mb-4">
-                    <div className="flex justify-between">
-                      <span>Price per day:</span>
-                      <span>${product.price.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Number of days:</span>
-                      <span>{totalDays}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between font-semibold">
-                      <span>Total:</span>
-                      <span>${totalPrice.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="bg-muted/50 p-6">
-                <Button className="w-full" onClick={handleRentNow}>
-                  {user ? "Rent Now" : "Login to Rent"}
-                </Button>
-              </CardFooter>
-            </Card>
-          ) : isOwner ? (
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-2">You own this product</h3>
-                <p className="text-muted-foreground">You can manage this product from your dashboard.</p>
-              </CardContent>
-              <CardFooter className="bg-muted/50 p-6">
-                <Button className="w-full" onClick={() => router.push("/dashboard/products")}>
-                  Manage Product
-                </Button>
-              </CardFooter>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-2">Product Unavailable</h3>
-                <p className="text-muted-foreground">This product is currently unavailable for rent.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-12">
-        <Tabs defaultValue="reviews">
-          <TabsList>
-            <TabsTrigger value="reviews">Reviews ({feedback.length})</TabsTrigger>
-            <TabsTrigger value="details">Details</TabsTrigger>
-          </TabsList>
-          <TabsContent value="reviews" className="pt-4">
-            {feedback.length === 0 ? (
-              <p className="text-muted-foreground">No reviews yet for this product.</p>
-            ) : (
-              <div className="space-y-4">
-                {feedback.map((item) => (
-                  <div key={item.Feedback_id} className="border rounded-lg p-4">
-                    <div className="flex items-center mb-2">
-                      <div className="flex">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`h-4 w-4 ${
-                              star <= item.rating ? "fill-primary text-primary" : "text-muted-foreground"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <p>{item.comment}</p>
-                  </div>
-                ))}
+            {product.location && (
+              <div className="flex items-center text-gray-600">
+                <MapPin className="h-5 w-5 mr-2" />
+                <span>{product.location}</span>
               </div>
             )}
-          </TabsContent>
-          <TabsContent value="details" className="pt-4">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold">Category</h3>
-                  <p>{product.category}</p>
+
+            {reviews.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-4 w-4 ${i < Math.round(calculateAverageRating()) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                    />
+                  ))}
                 </div>
-                <div>
-                  <h3 className="font-semibold">Availability</h3>
-                  <p>{product.availibility ? "Available" : "Unavailable"}</p>
-                </div>
+                <span className="text-sm text-gray-600">
+                  {calculateAverageRating()} ({reviews.length} {reviews.length === 1 ? "review" : "reviews"})
+                </span>
               </div>
-              <Separator />
-              <div>
-                <h3 className="font-semibold">Rental Terms</h3>
-                <ul className="list-disc list-inside mt-2 space-y-1 text-muted-foreground">
-                  <li>Security deposit may be required</li>
-                  <li>Return the item in the same condition</li>
-                  <li>Late returns will incur additional charges</li>
-                  <li>Cancellations must be made 24 hours in advance</li>
-                </ul>
+            )}
+
+            <div className="pt-4">
+              <div className="text-2xl font-bold mb-2">
+                {formatCurrency(product.price)} <span className="text-gray-500 text-base font-normal">/ day</span>
               </div>
+
+              {user && user.uid !== product.ownerId ? (
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full" disabled={product.isRented}>
+                      {product.isRented ? "Currently Rented" : "Request to Rent"}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Rent {product.title}</DialogTitle>
+                      <DialogDescription>Fill out the details to request this item for rental.</DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleRentRequest} className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="days">Number of Days</Label>
+                        <Input
+                          id="days"
+                          type="number"
+                          min="1"
+                          value={rentalDays}
+                          onChange={(e) => setRentalDays(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="message">Message to Owner (Optional)</Label>
+                        <Textarea
+                          id="message"
+                          placeholder="Introduce yourself and explain why you need this item..."
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          rows={3}
+                        />
+                      </div>
+
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <div className="flex justify-between mb-2">
+                          <span>Daily Rate:</span>
+                          <span>{formatCurrency(product.price)}</span>
+                        </div>
+                        <div className="flex justify-between mb-2">
+                          <span>Number of Days:</span>
+                          <span>{rentalDays}</span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                          <span>Total:</span>
+                          <span>{formatCurrency(product.price * rentalDays)}</span>
+                        </div>
+                      </div>
+
+                      <DialogFooter>
+                        <Button type="submit" disabled={isSubmitting}>
+                          {isSubmitting ? "Submitting..." : "Submit Request"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              ) : user && user.uid === product.ownerId ? (
+                <Button variant="outline" asChild>
+                  <a href="/my-products">Manage Your Products</a>
+                </Button>
+              ) : (
+                <Button asChild>
+                  <a href="/auth/login">Log in to Rent</a>
+                </Button>
+              )}
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
+
+        {/* Reviews Section */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold mb-6">Reviews</h2>
+
+          {loadingReviews ? (
+            <div className="space-y-4">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="border rounded-lg p-4">
+                  <Skeleton className="h-6 w-1/4 mb-2" />
+                  <Skeleton className="h-4 w-1/3 mb-4" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : reviews.length > 0 ? (
+            <div className="space-y-6">
+              {reviews.map((review) => (
+                <div key={review.id} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-semibold">{review.reviewerName}</h3>
+                      <p className="text-sm text-gray-500">
+                        {review.createdAt?.toDate ? formatDate(review.createdAt.toDate()) : "Recently"}
+                      </p>
+                    </div>
+                    <div className="flex">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {review.comment && <p className="text-gray-700">{review.comment}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">No reviews yet for this product.</p>
+          )}
+        </div>
       </div>
     </div>
   )

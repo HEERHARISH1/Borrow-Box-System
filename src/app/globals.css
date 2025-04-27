@@ -1,82 +1,76 @@
 @import "tailwindcss";
 
-
-
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --primary: #3b82f6;
+  --foreground: #1a1a1a; /* Darker foreground for better contrast */
+  --primary: #4f46e5; /* Vibrant indigo */
   --primary-foreground: #ffffff;
-  --secondary: #f3f4f6;
-  --secondary-foreground: #1f2937;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --accent: #f3f4f6;
-  --accent-foreground: #1f2937;
-  --destructive: #ef4444;
+  --secondary: #f3f4f6; /* Light gray */
+  --secondary-foreground: #111827; /* Dark gray */
+  --muted: #f9fafb; /* Very light gray */
+  --muted-foreground: #6b7280; /* Medium gray */
+  --accent: #818cf8; /* Lighter indigo for accents */
+  --accent-foreground: #1e293b;
+  --destructive: #ef4444; /* Bright red */
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
+  --border: #e5e7eb; /* Light border */
   --input: #e5e7eb;
-  --ring: #3b82f6;
+  --ring: #a5b4fc; /* Subtle focus ring */
   --radius: 0.5rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
-    --primary: #3b82f6;
+    --background: #111827; /* Dark blue-gray */
+    --foreground: #f9fafb;
+    --primary: #6366f1; /* Softer indigo for dark mode */
     --primary-foreground: #ffffff;
-    --secondary: #1e293b;
-    --secondary-foreground: #f8fafc;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
-    --accent: #1e293b;
-    --accent-foreground: #f8fafc;
-    --destructive: #ef4444;
+    --secondary: #1f2937; /* Darker than background */
+    --secondary-foreground: #f3f4f6;
+    --muted: #1f2937;
+    --muted-foreground: #9ca3af;
+    --accent: #7c3aed; /* Purple accent */
+    --accent-foreground: #ffffff;
+    --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --border: #1e293b;
-    --input: #1e293b;
-    --ring: #3b82f6;
+    --border: #374151; /* Dark border */
+    --input: #374151;
+    --ring: #818cf8;
   }
 }
-@theme inline{
 
-  --color-primary:var(--primary);
-  --color-primary-foreground:var(--primary-foreground);   
-  --color-secondary:var(--secondary);
-  --color-secondary-foreground:var(--secondary-foreground);
-
-
-  --color-muted:var(--muted);
-  --color-muted-foreground:var(--muted-foreground);
-  --color-accent:var(--accent);
-  --color-accent-foreground:var(--accent-foreground);
-  --color-destructive:var(--destructive);
-  --color-destructive-foreground:var(--destructive-foreground);
-  --color-border:var(--border);
-  --color-input:var(--input);
-  --color-ring:var(--ring);
-  --color-radius:var(--radius);
-
-  --color-background:var(--background);
-  --color-foreground:var(--foreground);
-  --color-background-muted:var(--background-muted);
-  --color-foreground-muted:var(--foreground-muted);
-  --color-background-accent:var(--background-accent);
-  --color-foreground-accent:var(--foreground-accent);
-  --color-background-destructive:var(--background-destructive);
-  --color-foreground-destructive:var(--foreground-destructive);
-  --color-background-secondary:var(--background-secondary);
-  --color-foreground-secondary:var(--foreground-secondary);
-  --color-background-primary:var(--background-primary);
-  --color-foreground-primary:var(--foreground-primary);
-  --color-background-accent-muted:var(--background-accent-muted);
-  --color-foreground-accent-muted:var(--foreground-accent-muted);
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);   
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-radius: var(--radius);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-background-muted: var(--background-muted);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-background-accent: var(--background-accent);
+  --color-foreground-accent: var(--foreground-accent);
+  --color-background-destructive: var(--background-destructive);
+  --color-foreground-destructive: var(--foreground-destructive);
+  --color-background-secondary: var(--background-secondary);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-background-primary: var(--background-primary);
+  --color-foreground-primary: var(--foreground-primary);
+  --color-background-accent-muted: var(--background-accent-muted);
+  --color-foreground-accent-muted: var(--foreground-accent-muted);
 }
+
 body {
   background: var(--background);
   color: var(--foreground);
 }
-
-

@@ -1,53 +1,37 @@
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Search } from "lucide-react"
+import Link from "next/link"
 
-export function Hero() {
+export default function Hero() {
   return (
-    <div className="relative overflow-hidden">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-24">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-          <div className="space-y-6">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-              Rent Anything, <span className="text-primary">Anytime</span>
-            </h1>
-            <p className="text-xl text-muted-foreground">
-              Find the perfect item for your needs or earn money by renting out your unused items.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/products">
-                <Button size="lg" className="w-full sm:w-auto">
-                  Browse Products
-                </Button>
-              </Link>
-              <Link href="/list-product">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                  List Your Item
-                </Button>
-              </Link>
-            </div>
-            <div className="relative mt-8">
-              <div className="flex items-center border border-input rounded-lg overflow-hidden">
-                <div className="pl-4">
-                  <Search className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search for anything..."
-                  className="w-full py-3 px-4 focus:outline-none bg-transparent"
-                />
-                <Button className="rounded-none h-full">Search</Button>
-              </div>
-            </div>
+    <section className="py-16 md:py-24">
+      <div className="grid md:grid-cols-2 gap-8 items-center">
+        <div>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">Rent What You Need, Share What You Don&apos;t</h1>
+          <p className="text-xl text-gray-600 mb-8">
+            Borrow Box connects people who need items with those who have them. Save money, reduce waste, and build
+            community.
+          </p>
+          <div className="flex gap-4">
+            <Button asChild size="lg">
+              <Link href="/products">Find Products</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/products/new">List Your Item</Link>
+            </Button>
           </div>
-          <div className="relative h-[300px] md:h-[400px] lg:h-[500px] bg-muted rounded-lg overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <p className="text-lg font-medium">Hero Image Placeholder</p>
+        </div>
+        <div className="bg-gray-100 rounded-lg p-8 aspect-square flex items-center justify-center">
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <Package className="h-16 w-16 text-primary" />
             </div>
+            <h2 className="text-2xl font-semibold mb-2">Peer-to-Peer Rentals</h2>
+            <p className="text-gray-600">Access thousands of items in your community without having to buy them.</p>
           </div>
         </div>
       </div>
-    </div>
+    </section>
   )
 }
+
+import { Package } from "lucide-react"

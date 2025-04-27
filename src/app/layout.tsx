@@ -1,24 +1,16 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Inter } from "next/font/google"
 import "./globals.css"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { AuthProvider } from "@/components/auth-provider"
+import Navbar from "@/components/navbar"
+import { AuthProvider } from "@/context/auth-context"
+import { Toaster } from "@/components/ui/toaster"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-})
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-})
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "RentEase - Rent Anything, Anytime",
-  description: "A platform for renting and listing products",
+  title: "Borrow Box - Peer-to-Peer Product Rental",
+  description: "Rent products from others or list your own products for rent",
 }
 
 export default function RootLayout({
@@ -28,11 +20,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}>
+      <body className={inter.className}>
         <AuthProvider>
           <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          <main className="min-h-screen pt-16">{children}</main>
+          <Toaster />
         </AuthProvider>
       </body>
     </html>
