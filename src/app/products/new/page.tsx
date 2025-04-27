@@ -49,8 +49,14 @@ export default function NewProductPage() {
       return
     }
 
-    // Validate form
-    if (!formData.title || !formData.description || !formData.category || !formData.price) {
+    // Validate form fields
+    if (
+      !formData.title || 
+      !formData.description || 
+      !formData.category || 
+      !formData.price || 
+      !formData.location
+    ) {
       toast({
         variant: "destructive",
         title: "Missing information",
@@ -59,23 +65,53 @@ export default function NewProductPage() {
       return
     }
 
+    // Title validation (5 to 20 characters)
+    if (formData.title.length < 5 || formData.title.length > 20) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Title",
+        description: "Title must be between 5 and 20 characters long.",
+      })
+      return
+    }
+
+    // Description validation (1 to 50 characters)
+    if (formData.description.length < 1 || formData.description.length > 50) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Description",
+        description: "Description must be between 1 and 50 characters long.",
+      })
+      return
+    }
+
+    // Price validation (1 to 100,000)
+    const priceValue = Number.parseFloat(formData.price)
+    if (isNaN(priceValue) || priceValue < 1 || priceValue > 100000) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Price",
+        description: "Price must be between 1 and 100,000.",
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
-      // Add product to Firestore
       const productData = {
         title: formData.title,
         description: formData.description,
         category: formData.category,
-        price: Number.parseFloat(formData.price),
+        price: priceValue,
         location: formData.location,
         ownerId: user.uid,
         ownerName: user.displayName || user.name,
         createdAt: serverTimestamp(),
         available: true,
-        isRented: false, // Add this field to track if product is currently rented
-        totalRentals: 0, // Track total times rented
-        totalRevenue: 0, // Track total revenue generated
+        isRented: false,
+        totalRentals: 0,
+        totalRevenue: 0,
       }
 
       const docRef = await addDoc(collection(db, "products"), productData)
@@ -111,6 +147,8 @@ export default function NewProductPage() {
             value={formData.title}
             onChange={handleChange}
             placeholder="e.g., Professional DSLR Camera"
+            minLength={5}
+            maxLength={20}
             required
           />
         </div>
@@ -122,8 +160,10 @@ export default function NewProductPage() {
             name="description"
             value={formData.description}
             onChange={handleChange}
-            placeholder="Describe your product, its condition, and any special instructions..."
+            placeholder="Describe your product..."
             rows={5}
+            minLength={1}
+            maxLength={50}
             required
           />
         </div>
@@ -150,23 +190,25 @@ export default function NewProductPage() {
             id="price"
             name="price"
             type="number"
-            min="0"
-            step="0.01"
+            min={1}
+            max={100000}
+            step="1"
             value={formData.price}
             onChange={handleChange}
-            placeholder="25.00"
+            placeholder="0.00"
             required
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="location">Location</Label>
+          <Label htmlFor="location">Location *</Label>
           <Input
             id="location"
             name="location"
             value={formData.location}
             onChange={handleChange}
             placeholder="e.g., New York, NY"
+            required
           />
         </div>
 
