@@ -23,25 +23,30 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
-
+  
     // Validation
     if (!name || !email || !password || !confirmPassword) {
       setError("All fields are required")
       return
     }
-
+  
+    if (name.length < 5) {
+      setError("Full Name must be at least 5 characters")
+      return
+    }
+  
     if (password !== confirmPassword) {
       setError("Passwords do not match")
       return
     }
-
+  
     if (password.length < 6) {
       setError("Password must be at least 6 characters")
       return
     }
-
+  
     setLoading(true)
-
+  
     try {
       await register(name, email, password)
       router.push("/")

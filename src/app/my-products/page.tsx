@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/context/auth-context"
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
+import { db, auth } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency, formatDate } from "@/lib/utils"
@@ -22,7 +22,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
+import { reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth"
 
 export default function MyProductsPage() {
   const { user } = useAuth()
@@ -32,6 +34,8 @@ export default function MyProductsPage() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [productToDelete, setProductToDelete] = useState(null)
+  const [password, setPassword] = useState("")
+  const [errorMsg, setErrorMsg] = useState("")
 
   useEffect(() => {
     if (!user) {
@@ -48,13 +52,11 @@ export default function MyProductsPage() {
     setLoading(true)
     try {
       const q = query(collection(db, "products"), where("ownerId", "==", user.uid))
-
       const querySnapshot = await getDocs(q)
       const productsData = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }))
-
       setProducts(productsData)
     } catch (error) {
       console.error("Error fetching products:", error)
@@ -74,9 +76,10 @@ export default function MyProductsPage() {
         available: !currentStatus,
       })
 
-      // Update local state
       setProducts((prevProducts) =>
-        prevProducts.map((product) => (product.id === productId ? { ...product, available: !currentStatus } : product)),
+        prevProducts.map((product) =>
+          product.id === productId ? { ...product, available: !currentStatus } : product
+        )
       )
 
       toast({
@@ -97,9 +100,22 @@ export default function MyProductsPage() {
     if (!productToDelete) return
 
     try {
+      if (!password) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Please enter your password to confirm deletion.",
+        })
+        return
+      }
+
+      // Reauthenticate the user
+      const userCredential = EmailAuthProvider.credential(user.email, password)
+      await reauthenticateWithCredential(auth.currentUser, userCredential)
+
+      // Now delete the product
       await deleteDoc(doc(db, "products", productToDelete))
 
-      // Update local state
       setProducts((prevProducts) => prevProducts.filter((product) => product.id !== productToDelete))
 
       toast({
@@ -107,14 +123,13 @@ export default function MyProductsPage() {
         description: "Your product has been successfully deleted.",
       })
 
+      // Reset fields
       setProductToDelete(null)
+      setPassword("")
+      setErrorMsg("")
     } catch (error) {
-      console.error("Error deleting product:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete product.",
-      })
+      console.error("Error during deletion:", error)
+      setErrorMsg("Incorrect password. Please try again.")
     }
   }
 
@@ -158,7 +173,7 @@ export default function MyProductsPage() {
       {products.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <h2 className="text-xl font-medium mb-2">No products listed yet</h2>
-          <p className="text-gray-500 mb-6">Start earning by listing items you don&apos;t use every day.</p>
+          <p className="text-gray-500 mb-6">Start earning by listing items you don't use every day.</p>
           <Button asChild>
             <Link href="/products/new">List Your First Product</Link>
           </Button>
@@ -170,8 +185,7 @@ export default function MyProductsPage() {
               <CardHeader>
                 <CardTitle className="truncate">{product.title}</CardTitle>
                 <CardDescription>
-                  {product.category} • Listed{" "}
-                  {product.createdAt?.toDate ? formatDate(product.createdAt.toDate()) : "Recently"}
+                  {product.category} • Listed {product.createdAt?.toDate ? formatDate(product.createdAt.toDate()) : "Recently"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -206,7 +220,11 @@ export default function MyProductsPage() {
                       variant="destructive"
                       size="sm"
                       className="w-full"
-                      onClick={() => setProductToDelete(product.id)}
+                      onClick={() => {
+                        setProductToDelete(product.id)
+                        setPassword("")
+                        setErrorMsg("")
+                      }}
                     >
                       <Trash2 className="h-4 w-4 mr-1" /> Delete
                     </Button>
@@ -215,12 +233,32 @@ export default function MyProductsPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete your product and remove it from our
-                        servers.
+                        This action cannot be undone.  
+                        <br />
+                        <br />
+                        Please enter your password to confirm deletion:
                       </AlertDialogDescription>
                     </AlertDialogHeader>
+
+                    <div className="space-y-2 mt-4">
+                      <Input
+                        type="password"
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                      {errorMsg && <p className="text-sm text-red-500">{errorMsg}</p>}
+                    </div>
+
                     <AlertDialogFooter>
-                      <AlertDialogCancel onClick={() => setProductToDelete(null)}>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel onClick={() => {
+                        setProductToDelete(null)
+                        setPassword("")
+                        setErrorMsg("")
+                      }}>
+                        Cancel
+                      </AlertDialogCancel>
                       <AlertDialogAction onClick={deleteProduct}>Delete</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
